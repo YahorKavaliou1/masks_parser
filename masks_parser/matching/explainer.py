@@ -1,8 +1,7 @@
 import string
-import unicodedata
 from collections.abc import Callable, Iterable
 
-from masks_parser.domain import Mask
+from masks_parser.domain import Mask, is_cyrillic, show_char
 
 _BASE_ALPHABET = frozenset(string.ascii_uppercase + string.digits)
 
@@ -46,19 +45,24 @@ class MismatchExplainer:
 
     @staticmethod
     def _inner_space(key: str) -> str | None:
-        return "Пробел внутри артикула" if any(ch.isspace() for ch in key) else None
+        for pos, ch in enumerate(key, start=1):
+            if ch == " ":
+                return "Пробел внутри артикула"
+            if ch.isspace():
+                return f"Пробельный символ {show_char(ch)} в позиции {pos}"
+        return None
 
     @staticmethod
     def _cyrillic(key: str) -> str | None:
         for pos, ch in enumerate(key, start=1):
-            if unicodedata.name(ch, "").startswith("CYRILLIC"):
+            if is_cyrillic(ch):
                 return f"Кириллическая буква «{ch}» в позиции {pos}"
         return None
 
     def _forbidden_char(self, key: str) -> str | None:
         for pos, ch in enumerate(key, start=1):
             if ch not in self._alphabet:
-                return f"Недопустимый символ «{ch}» в позиции {pos}"
+                return f"Недопустимый символ «{show_char(ch)}» в позиции {pos}"
         return None
 
     def _unknown_prefix(self, key: str) -> str | None:

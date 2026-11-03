@@ -55,7 +55,11 @@ class XlsxTableReader:
         except (InvalidFileException, zipfile.BadZipFile, KeyError) as e:
             raise CatalogFormatError(f"Файл не является книгой Excel .xlsx: {path} ({e})") from e
         try:
-            for row in workbook.worksheets[0].iter_rows(values_only=True):
+            sheet = workbook.worksheets[0]
+            # В read-only режиме openpyxl доверяет размеру листа из файла, а сторонние
+            # программы пишут его неверно (например, «A1») — тогда колонки обрезаются.
+            sheet.reset_dimensions()
+            for row in sheet.iter_rows(values_only=True):
                 yield [self._to_str(value) for value in row]
         finally:
             workbook.close()

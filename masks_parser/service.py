@@ -2,11 +2,11 @@ from pathlib import Path
 
 from masks_parser.catalog import ArticleNormalizer, CatalogFormatError, CatalogLoader
 from masks_parser.certificate import CertificateError, CertificateParser
-from masks_parser.matching import AmbiguousMatchError, CatalogChecker
+from masks_parser.matching import CatalogChecker
 from masks_parser.report import ReportSummary, XlsxReportWriter
 
 # Ошибки входных данных: о них сообщается пользователю, а не трейсбеком.
-USER_ERRORS = (CertificateError, CatalogFormatError, AmbiguousMatchError, OSError)
+USER_ERRORS = (CertificateError, CatalogFormatError, OSError)
 
 
 class ReportService:

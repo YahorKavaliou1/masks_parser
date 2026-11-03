@@ -1,5 +1,8 @@
 """Сквозные тесты командной строки: файлы из samples/ → отчёт, сверенный с эталоном."""
 
+import subprocess
+import sys
+
 import pytest
 from openpyxl import load_workbook
 
@@ -96,3 +99,10 @@ def test_missing_catalog_columns(capsys, tmp_path):
     code, _, err = _run(capsys, "--certificate", CERTIFICATE, "--catalog", str(catalog))
     assert code == 1
     assert "В выгрузке нет колонок: производитель, товарная группа" in err
+
+
+def test_module_entry_point():
+    result = subprocess.run(
+        [sys.executable, "-m", "masks_parser", "--version"], capture_output=True, text=True, check=False
+    )
+    assert (result.returncode, result.stdout.startswith("masks-parser")) == (0, True)

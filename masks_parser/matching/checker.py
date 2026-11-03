@@ -17,8 +17,15 @@ class CatalogChecker:
     def check(self, item: CatalogItem) -> MatchResult:
         if reason := self._scope.check(item):
             return MatchResult(item=item, status=MatchStatus.EXCEPTION, reason=reason)
-        if mask := self._matcher.match(item.key):
-            return MatchResult(item=item, status=MatchStatus.MATCH, mask=mask)
+        found = self._matcher.find(item.key)
+        if len(found) == 1:
+            return MatchResult(item=item, status=MatchStatus.MATCH, mask=found[0])
+        if found:
+            # По ТЗ принятый артикул соответствует ровно одной маске; остальное — в исключения.
+            patterns = ", ".join(m.pattern for m in found)
+            return MatchResult(
+                item=item, status=MatchStatus.EXCEPTION, reason=f"Соответствует нескольким маскам: {patterns}"
+            )
         return MatchResult(item=item, status=MatchStatus.EXCEPTION, reason=self._explainer.explain(item.key))
 
     def check_all(self, items: Iterable[CatalogItem]) -> list[MatchResult]:

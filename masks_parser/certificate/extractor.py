@@ -73,6 +73,8 @@ class DocxCertificateExtractor:
 
     def _register_rows(self, tables: list[Table]) -> tuple[RegisterRow, ...]:
         for table in tables:
+            if not table.rows:
+                continue
             header = [cell.text.strip().casefold() for cell in table.rows[0].cells]
             mask_col = self._column(header, "маска")
             if mask_col is None:
@@ -82,17 +84,20 @@ class DocxCertificateExtractor:
             rows = []
             for row in table.rows[1:]:
                 cells = [cell.text.strip() for cell in row.cells]
-                if not cells[mask_col]:
-                    continue
-                rows.append(
-                    RegisterRow(
-                        mask=cells[mask_col],
-                        manufacturer=cells[manufacturer_col] if manufacturer_col is not None else "",
-                        regex=cells[regex_col] if regex_col is not None else "",
+                if mask := self._cell(cells, mask_col):
+                    rows.append(
+                        RegisterRow(
+                            mask=mask,
+                            manufacturer=self._cell(cells, manufacturer_col),
+                            regex=self._cell(cells, regex_col),
+                        )
                     )
-                )
             return tuple(rows)
         raise CertificateError(["Не найдена таблица реестра масок (колонка «Маска»)"])
+
+    @staticmethod
+    def _cell(cells: list[str], index: int | None) -> str:
+        return cells[index] if index is not None and index < len(cells) else ""
 
     @staticmethod
     def _column(header: list[str], name: str) -> int | None:

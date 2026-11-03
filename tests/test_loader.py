@@ -1,9 +1,11 @@
+import re
+import zipfile
 from pathlib import Path
 
 import pytest
 from openpyxl import Workbook
 
-from masks_parser.catalog import CatalogFormatError
+from masks_parser.catalog import CatalogFormatError, XlsxTableReader
 from tests import hilex
 
 
@@ -119,3 +121,32 @@ def test_empty_file_is_rejected(loader, tmp_path):
 def test_unsupported_format_is_rejected(loader, tmp_path):
     with pytest.raises(CatalogFormatError, match="'.xls'"):
         loader.load(tmp_path / "c.xls")
+
+
+def test_xlsx_with_wrong_dimension_is_read_fully(loader, tmp_path):
+    # Сторонние программы пишут в файл неверный размер листа (<dimension ref="A1"/>);
+    # в read-only режиме openpyxl без reset_dimensions() обрезал бы колонки.
+    path = _write_xlsx(
+        tmp_path / "ok.xlsx", [["Производитель", "Товарная группа", "Артикул"], ["X", "Y", "4VB0000"]]
+    )
+    broken = tmp_path / "bad_dim.xlsx"
+    with zipfile.ZipFile(path) as src, zipfile.ZipFile(broken, "w") as dst:
+        for entry in src.infolist():
+            data = src.read(entry.filename)
+            if entry.filename == "xl/worksheets/sheet1.xml":
+                data = re.sub(rb'<dimension ref="[^"]+"/>', b'<dimension ref="A1"/>', data)
+            dst.writestr(entry, data)
+    [item] = loader.load(broken)
+    assert (item.manufacturer, item.product_group, item.raw_article) == ("X", "Y", "4VB0000")
+
+
+def test_undecodable_csv_is_rejected(loader, tmp_path):
+    path = tmp_path / "c.csv"
+    path.write_bytes(b"\x98\xff")  # не UTF-8, и байт 0x98 не определён в cp1251
+    with pytest.raises(CatalogFormatError, match="кодировка"):
+        loader.load(path)
+
+
+@pytest.mark.parametrize(("value", "text"), [(None, ""), (1234567.0, "1234567"), (12.5, "12.5"), (7, "7")])
+def test_xlsx_cell_to_str(value, text):
+    assert XlsxTableReader._to_str(value) == text

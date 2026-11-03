@@ -1,8 +1,9 @@
 import re
+import string
 from collections import Counter
 
 from masks_parser.certificate.extractor import CertificateDraft
-from masks_parser.domain import Mask, normalize_name
+from masks_parser.domain import Mask, is_cyrillic, normalize_name
 
 _COMBINED = re.compile(r"\^\(\?:(?P<prefixes>[^()]+)\)(?P<tail>.+)\$")
 
@@ -20,6 +21,7 @@ class CertificateValidator:
             *self._names("производитель", draft.manufacturers),
             *self._names("товарная группа", draft.product_groups),
             *self._duplicates(patterns),
+            *self._mask_chars(patterns),
             *self._row_regexes(draft, masks),
             *self._listed(draft.listed_masks, patterns),
             *self._combined(draft.combined_regexes, masks),
@@ -38,6 +40,20 @@ class CertificateValidator:
     def _duplicates(patterns: list[str]) -> list[str]:
         repeated = [p for p, n in Counter(patterns).items() if n > 1]
         return [f"Маски повторяются в реестре: {', '.join(repeated)}"] if repeated else []
+
+    @staticmethod
+    def _mask_chars(patterns: list[str]) -> list[str]:
+        """Маска, набранная с кириллицей или строчными буквами, молча не найдёт ни одного артикула."""
+        problems = []
+        for pattern in patterns:
+            if cyrillic := [ch for ch in pattern if is_cyrillic(ch)]:
+                problems.append(f"Маска {pattern} содержит кириллицу: {', '.join(cyrillic)}")
+            if lowercase := [ch for ch in pattern if ch in string.ascii_lowercase]:
+                problems.append(
+                    f"Маска {pattern} содержит строчные латинские буквы: {', '.join(lowercase)} "
+                    "(артикулы сравниваются в верхнем регистре)"
+                )
+        return problems
 
     @staticmethod
     def _row_regexes(draft: CertificateDraft, masks: list[Mask]) -> list[str]:

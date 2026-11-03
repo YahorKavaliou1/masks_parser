@@ -23,12 +23,16 @@ class MaskMatcher:
         if duplicates:
             raise ValueError(f"Маски повторяются: {', '.join(duplicates)}")
 
-    def match(self, key: str) -> Mask | None:
-        """Возвращает единственную подходящую маску или None.
+    def find(self, key: str) -> list[Mask]:
+        """Все маски, под которые подходит ключ.
 
         Ключ должен быть уже нормализован: регистр и пробелы здесь не обрабатываются.
         """
-        found = [m for m in self.masks if m.matches(key)]
+        return [m for m in self.masks if m.matches(key)]
+
+    def match(self, key: str) -> Mask | None:
+        """Возвращает единственную подходящую маску или None; несколько масок — AmbiguousMatchError."""
+        found = self.find(key)
         if len(found) > 1:
             raise AmbiguousMatchError(key, found)
         return found[0] if found else None

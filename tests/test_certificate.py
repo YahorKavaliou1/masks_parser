@@ -123,3 +123,48 @@ def _replace_paragraph(path: Path, startswith: str, text: str) -> None:
     paragraph = next(p for p in doc.paragraphs if p.text.startswith(startswith))
     paragraph.text = text
     doc.save(str(path))
+
+
+@pytest.mark.parametrize(
+    ("masks", "problem"),
+    [
+        (["4VВ****", "4JB****"], "Маска 4VВ**** содержит кириллицу: В"),
+        (["4vb****", "4JB****"], "Маска 4vb**** содержит строчные латинские буквы: v, b"),
+    ],
+)
+def test_masks_that_can_never_match_are_rejected(parser, tmp_path, masks, problem):
+    problems = _problems(parser, build_certificate(tmp_path / "c.docx", masks=masks, combined="", declared=2))
+    assert any(p.startswith(problem) for p in problems), problems
+
+
+def test_register_is_found_after_other_tables(parser, tmp_path):
+    path = build_certificate(tmp_path / "c.docx")
+    doc = Document(str(path))
+    body = doc.element.body
+    empty, other = doc.add_table(rows=0, cols=1), doc.add_table(rows=1, cols=2)
+    other.rows[0].cells[0].text = "Строка"
+    for table in (other, empty):  # переносим в начало документа, перед реестром
+        body.insert(0, table._tbl)
+    doc.save(str(path))
+    assert len(parser.parse(path).masks) == 38
+
+
+def test_blank_register_rows_are_skipped(parser, tmp_path):
+    path = build_certificate(tmp_path / "c.docx")
+    doc = Document(str(path))
+    doc.tables[0].add_row()
+    doc.save(str(path))
+    assert len(parser.parse(path).masks) == 38
+
+
+def test_empty_register_is_rejected(parser, tmp_path):
+    path = build_certificate(tmp_path / "c.docx", masks=[], listed=["AB**", "CD**"], combined="")
+    assert _problems(parser, path) == ["Реестр масок пуст"]
+
+
+def test_comma_separated_text_without_masks_is_not_a_mask_list(parser, tmp_path):
+    path = build_certificate(tmp_path / "c.docx")
+    doc = Document(str(path))
+    doc.add_paragraph("Япония, Таиланд, Китай.")
+    doc.save(str(path))
+    assert len(parser.parse(path).masks) == 38

@@ -126,6 +126,12 @@ def test_duplicate_masks_rejected():
         MaskMatcher([compile_mask("4VB****"), compile_mask("4VB****")])
 
 
+def test_find_returns_all_matching_masks():
+    matcher = MaskMatcher([compile_mask("4VB****"), compile_mask("4VB0***")])
+    assert [m.pattern for m in matcher.find("4VB0123")] == ["4VB****", "4VB0***"]
+    assert matcher.find("4QB0123") == []
+
+
 def test_overlapping_masks_raise_on_ambiguous_key():
     matcher = MaskMatcher([compile_mask("4VB****"), compile_mask("4VB0***")])
     assert matcher.match("4VB1234").pattern == "4VB****"
