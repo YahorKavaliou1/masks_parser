@@ -1,10 +1,12 @@
 import csv
 import io
+import zipfile
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Protocol
 
 from openpyxl import load_workbook
+from openpyxl.utils.exceptions import InvalidFileException
 
 
 class CatalogFormatError(ValueError):
@@ -48,7 +50,10 @@ class XlsxTableReader:
     """Первый лист книги Excel. Числовые ячейки приводятся к строке без «.0»."""
 
     def rows(self, path: Path) -> Iterator[list[str]]:
-        workbook = load_workbook(path, read_only=True, data_only=True)
+        try:
+            workbook = load_workbook(path, read_only=True, data_only=True)
+        except (InvalidFileException, zipfile.BadZipFile, KeyError) as e:
+            raise CatalogFormatError(f"Файл не является книгой Excel .xlsx: {path} ({e})") from e
         try:
             for row in workbook.worksheets[0].iter_rows(values_only=True):
                 yield [self._to_str(value) for value in row]

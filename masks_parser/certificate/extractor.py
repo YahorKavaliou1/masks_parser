@@ -1,8 +1,10 @@
 import re
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from docx import Document
+from docx.opc.exceptions import PackageNotFoundError
 from docx.table import Table
 
 
@@ -53,7 +55,10 @@ class DocxCertificateExtractor:
     """
 
     def extract(self, path: Path) -> CertificateDraft:
-        document = Document(str(path))
+        try:
+            document = Document(str(path))
+        except (PackageNotFoundError, zipfile.BadZipFile, KeyError) as e:
+            raise CertificateError([f"Файл не является документом .docx: {path} ({e})"]) from e
         paragraphs = [p.text.strip() for p in document.paragraphs if p.text.strip()]
         rows = self._register_rows(document.tables)
         return CertificateDraft(
