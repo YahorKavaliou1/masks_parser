@@ -4,16 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Сверка артикулов</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Roboto:wght@400;500;700&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <main class="page">
   <header class="header">
     <a href="{{ url_for('index') }}" class="brand">
-      <span class="brand-mark" aria-hidden="true">4VB<span>****</span></span>
-      <span>Сверка артикулов</span>
+      <span class="brand-name">Сверка артикулов</span>
+      <span class="brand-badge" aria-hidden="true">4VB****</span>
     </a>
-    <p class="lead">Загрузите масочный сертификат и выгрузку каталога — программа найдёт товары, на которые распространяется сертификат, и объяснит, почему не подошли остальные.</p>
   </header>
 
   {% if result %}
@@ -101,13 +103,18 @@
     </section>
     {% endif %}
 
-    <ol class="steps" aria-label="Как это работает">
-      <li><b>Сертификат</b><span>Берём производителя, товарную группу и маски, сверяем разделы документа между собой</span></li>
-      <li><b>Выгрузка каталога</b><span>Каждую строку проверяем по производителю, группе и маскам</span></li>
-      <li><b>Результат</b><span>Список подходящих товаров, исключения с причинами и отчёт Excel</span></li>
-    </ol>
+    <section class="hero">
+      <h1>Сверка артикулов<br>по масочному сертификату</h1>
+      <p class="lead">Загрузите масочный сертификат и выгрузку каталога — программа найдёт товары, на которые распространяется сертификат, и объяснит, почему не подошли остальные.</p>
+      <ol class="steps" aria-label="Как это работает">
+        <li><b>Сертификат</b> — берём производителя, товарную группу и маски, сверяем разделы документа между собой</li>
+        <li><b>Выгрузка каталога</b> — каждую строку проверяем по производителю, группе и маскам</li>
+        <li><b>Результат</b> — список подходящих товаров, исключения с причинами и отчёт Excel</li>
+      </ol>
+    </section>
 
     <form class="card upload" action="{{ url_for('check') }}" method="post" enctype="multipart/form-data" data-submit>
+      <h2>Загрузите файлы</h2>
       <div class="drops">
         <label class="drop" data-drop>
           <input type="file" name="certificate" accept=".docx" required>
@@ -131,7 +138,7 @@
     </form>
 
     {% if samples | length == 3 %}
-    <section class="card samples">
+    <section class="card samples cta">
       <div>
         <h2>Нет файлов под рукой?</h2>
         <p class="muted">Запустите проверку на синтетических примерах или скачайте их, чтобы посмотреть ожидаемый формат:
@@ -139,7 +146,7 @@
       </div>
       <form action="{{ url_for('check') }}" method="post" data-submit>
         <input type="hidden" name="use_samples" value="1">
-        <button class="button" type="submit" data-busy="Проверяем…">Проверить на примерах</button>
+        <button class="button dark" type="submit" data-busy="Проверяем…">Проверить на примерах</button>
       </form>
     </section>
     {% endif %}
