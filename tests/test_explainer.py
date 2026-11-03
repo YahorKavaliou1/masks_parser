@@ -1,0 +1,76 @@
+import pytest
+
+from masks_parser.catalog import ArticleNormalizer
+from masks_parser.domain import MatchStatus
+from masks_parser.matching import MismatchExplainer, compile_mask
+from tests import hilex
+
+
+@pytest.fixture(scope="module")
+def explainer(hilex_masks) -> MismatchExplainer:
+    return MismatchExplainer(hilex_masks)
+
+
+@pytest.mark.parametrize(
+    ("key", "reason"),
+    [
+        # контрольные примеры из ТЗ
+        ("4VB123", "Длина 6 символов, ожидается: 4VB**** — 7"),
+        ("4VB12345", "Длина 8 символов, ожидается: 4VB**** — 7"),
+        ("4VB12-3", "Недопустимый символ «-» в позиции 6"),
+        ("4QB1234", "Префикс отсутствует в перечне масок"),
+        ("4VB12А3", "Кириллическая буква «А» в позиции 6"),
+        # прочие граничные случаи
+        ("", "Пустой артикул"),
+        ("4VB1234\n", "Перевод строки в артикуле"),
+        ("4VB12\r\n34", "Перевод строки в артикуле"),
+        ("4VB 1234", "Пробел внутри артикула"),
+        ("\t4VB1234", "Пробел внутри артикула"),
+        ("А4B1234", "Кириллическая буква «А» в позиции 1"),
+        ("4VB.1234", "Недопустимый символ «.» в позиции 4"),
+        ("4VB12É4", "Недопустимый символ «É» в позиции 6"),
+        ("IPB0001", "Префикс отсутствует в перечне масок"),
+        ("B4VB123", "Префикс отсутствует в перечне масок"),
+        ("4VB", "Длина 3 символов, ожидается: 4VB**** — 7"),
+    ],
+)
+def test_explain(explainer, key, reason):
+    assert explainer.explain(key) == reason
+
+
+def test_space_check_precedes_char_check(explainer):
+    # Пробел и дефис одновременно — причина по первому правилу.
+    assert explainer.explain("4VB 12-3") == "Пробел внутри артикула"
+
+
+def test_mask_literals_are_allowed_chars():
+    # В чужом формате дефис — часть маски, а не «недопустимый символ».
+    explainer = MismatchExplainer([compile_mask("AB-***")])
+    assert explainer.explain("AB-12") == "Длина 5 символов, ожидается: AB-*** — 6"
+
+
+def test_fallback_reason_when_no_rule_applies():
+    # Длина и префикс верны, но символ не подходит под класс подстановки.
+    explainer = MismatchExplainer([compile_mask("AB-***")])
+    assert explainer.explain("AB-1-2") == "Не соответствует ни одной маске"
+
+
+def test_samples_match_expected_status(matcher, explainer):
+    """Нормализация + маски дают эталонный результат по строкам HI-LEX из тестовой выгрузки.
+
+    Строки других производителей и групп проверяются на этапе фильтрации выгрузки.
+    """
+    normalizer = ArticleNormalizer()
+    rows = [
+        r
+        for r in hilex.sample_rows()
+        if (r["Производитель"], r["Товарная группа"]) == (hilex.MANUFACTURER, hilex.GROUP)
+    ]
+    assert len(rows) > 150
+    for row in rows:
+        key = normalizer.normalize(row["Артикул"])
+        mask = matcher.match(key)
+        status = MatchStatus.MATCH if mask else MatchStatus.EXCEPTION
+        assert status == row["expected"], (row["Артикул"], explainer.explain(key))
+        if not mask:
+            assert explainer.explain(key) != "Не соответствует ни одной маске", row["Артикул"]

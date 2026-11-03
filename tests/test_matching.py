@@ -1,34 +1,16 @@
-import csv
 import random
-import re
-from pathlib import Path
 
 import pytest
 
 from masks_parser.matching import AmbiguousMatchError, MaskCompiler, MaskMatcher, compile_mask
-
-HILEX_PREFIXES = (
-    "4VB 4JB 4AB 9TB 4TB 4HB 9CB 9NB 4GB 4RB 4PB 9VB 4UB 4CB 4NB 4DB 9AB 4FB 4BB "
-    "4ZB 9HB 4MB 9DB 9ZB 1PB 5PB 9JB 2HB 5CB 2JB 2PB 9RB 9YB 2KB 9GB 2YB 7HB 9BB"
-).split()
-HILEX_MASKS = [p + "****" for p in HILEX_PREFIXES]
-
-# Итоговое выражение из раздела «Точное условие машинной проверки» ТЗ.
-TZ_REGEX = re.compile(r"^(?:" + "|".join(HILEX_PREFIXES) + r")[A-Z0-9]{4}$")
-
-SAMPLES = Path(__file__).resolve().parent.parent / "samples"
-
-
-@pytest.fixture(scope="module")
-def matcher() -> MaskMatcher:
-    return MaskMatcher(compile_mask(m) for m in HILEX_MASKS)
+from tests import hilex
 
 
 def test_hilex_register_has_38_masks():
-    assert len(HILEX_MASKS) == len(set(HILEX_MASKS)) == 38
+    assert len(hilex.MASKS) == len(set(hilex.MASKS)) == 38
 
 
-@pytest.mark.parametrize("prefix", HILEX_PREFIXES)
+@pytest.mark.parametrize("prefix", hilex.PREFIXES)
 def test_mask_compiles_to_regex_from_register(prefix):
     # В реестре ТЗ: ^4VB[A-Z0-9]{4}$; якоря не нужны, т.к. используется fullmatch.
     assert compile_mask(prefix + "****").regex.pattern == prefix + "[A-Z0-9]{4}"
@@ -71,28 +53,39 @@ def test_matcher_rejects_non_strict_keys(matcher, key):
 
 
 def test_every_mask_is_reachable(matcher):
-    for prefix in HILEX_PREFIXES:
+    for prefix in hilex.PREFIXES:
         assert matcher.match(prefix + "Z9O1").pattern == prefix + "****"
 
 
 def test_matcher_agrees_with_tz_regex(matcher):
     """Набор отдельных масок эквивалентен итоговому выражению из ТЗ."""
-    with open(SAMPLES / "catalog_sample.csv", encoding="utf-8-sig", newline="") as f:
-        articles = [row["Артикул"] for row in csv.DictReader(f, delimiter=";")]
+    articles = [row["Артикул"] for row in hilex.sample_rows()]
     rng = random.Random(0)
     alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-a А"
     articles += [
-        rng.choice(HILEX_PREFIXES + ["4QB", "4VA"]) + "".join(rng.choices(alphabet, k=rng.randint(3, 5)))
+        rng.choice(hilex.PREFIXES + ["4QB", "4VA"]) + "".join(rng.choices(alphabet, k=rng.randint(3, 5)))
         for _ in range(5000)
     ]
     for article in articles:
-        assert (matcher.match(article) is not None) == (TZ_REGEX.fullmatch(article) is not None), article
+        assert (matcher.match(article) is not None) == (hilex.TZ_REGEX.fullmatch(article) is not None), (
+            article
+        )
 
 
 def test_literal_regex_chars_are_escaped():
     mask = compile_mask("A.B+**")
     assert mask.matches("A.B+1Z")
     assert not mask.matches("AxBB1Z")
+
+
+@pytest.mark.parametrize(
+    ("pattern", "prefix"),
+    [("4VB****", "4VB"), ("A*B**", "A"), ("*AB", ""), ("ABC", "ABC")],
+)
+def test_mask_prefix_and_length(pattern, prefix):
+    mask = compile_mask(pattern)
+    assert mask.prefix == prefix
+    assert mask.length == len(pattern)
 
 
 def test_single_wildcard_has_no_quantifier():

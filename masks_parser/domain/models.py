@@ -5,10 +5,19 @@ from enum import StrEnum
 
 @dataclass(frozen=True)
 class Mask:
-    """Маска артикула: человекочитаемая запись и regex для полного сопоставления."""
+    """Маска артикула: человекочитаемая запись и regex для полного сопоставления.
+
+    Каждый символ маски соответствует ровно одному символу артикула,
+    поэтому длина артикула равна длине маски.
+    """
 
     pattern: str
     regex: re.Pattern[str]
+    prefix: str  # неизменная часть до первой подстановки
+
+    @property
+    def length(self) -> int:
+        return len(self.pattern)
 
     def matches(self, key: str) -> bool:
         return self.regex.fullmatch(key) is not None

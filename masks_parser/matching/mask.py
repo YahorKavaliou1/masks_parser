@@ -27,7 +27,13 @@ class MaskCompiler:
         if not pattern or any(ch.isspace() for ch in pattern):
             raise ValueError(f"Некорректная маска: {pattern!r}")
         regex = "".join(self._compile_run(ch, len(list(run))) for ch, run in groupby(pattern))
-        return Mask(pattern=pattern, regex=re.compile(regex))
+        return Mask(pattern=pattern, regex=re.compile(regex), prefix=self._prefix(pattern))
+
+    def _prefix(self, pattern: str) -> str:
+        for i, ch in enumerate(pattern):
+            if ch in self._wildcards:
+                return pattern[:i]
+        return pattern
 
     def _compile_run(self, ch: str, count: int) -> str:
         if ch not in self._wildcards:
