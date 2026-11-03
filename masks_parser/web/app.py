@@ -1,4 +1,3 @@
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -71,7 +70,7 @@ def create_app(
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
     app.jinja_env.filters["visible"] = visible
     service = service or ReportService()
-    store = store or JobStore(Path(tempfile.mkdtemp(prefix="masks-parser-")))
+    store = store or JobStore(JobStore.default_root())
     samples = [name for name in SAMPLE_FILES if (samples_dir / name).is_file()]
 
     def page(status: int = 200, **context):

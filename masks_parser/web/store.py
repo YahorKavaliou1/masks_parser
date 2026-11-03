@@ -1,4 +1,6 @@
+import os
 import shutil
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -9,9 +11,17 @@ class JobStore:
 
     Каждая проверка получает папку со случайным id; отчёт отдаётся только по этому id.
     Папки старше `ttl_seconds` удаляются при создании новой проверки.
+
+    Корневая папка общая для всех процессов сервера (gunicorn запускает несколько):
+    проверку выполняет один процесс, а отчёт может скачиваться через другой.
     """
 
     REPORT_NAME = "report.xlsx"
+    ROOT_ENV = "MASKS_PARSER_JOBS_DIR"
+
+    @classmethod
+    def default_root(cls) -> Path:
+        return Path(os.environ.get(cls.ROOT_ENV) or Path(tempfile.gettempdir()) / "masks-parser-jobs")
 
     def __init__(self, root: Path, ttl_seconds: int = 3600):
         self._root = root
@@ -34,7 +44,11 @@ class JobStore:
     def _cleanup(self) -> None:
         expired = time.time() - self._ttl
         for job_dir in self._root.iterdir():
-            if job_dir.is_dir() and job_dir.stat().st_mtime < expired:
+            try:
+                is_expired = job_dir.is_dir() and job_dir.stat().st_mtime < expired
+            except FileNotFoundError:  # папку уже удалил другой процесс
+                continue
+            if is_expired:
                 shutil.rmtree(job_dir, ignore_errors=True)
 
     @staticmethod

@@ -1,0 +1,9 @@
+# Render Blueprint: New → Blueprint → выбрать этот репозиторий.
+services:
+  - type: web
+    name: masks-parser
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    autoDeploy: true

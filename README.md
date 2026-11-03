@@ -92,18 +92,27 @@ python -m masks_parser.web    # затем откройте http://localhost:800
 
 ### Через Docker
 
+Образ по умолчанию запускает веб-интерфейс (production-сервер gunicorn) на http://localhost:8000:
+
 ```bash
 docker build -t masks-parser .
-docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)/data:/app/data" masks-parser --certificate data/input/certificate.docx --catalog data/input/catalog.xlsx --output data/output/report.xlsx
+docker run --rm -p 8000:8000 masks-parser
+```
+
+Командная строка в том же образе:
+
+```bash
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)/data:/app/data" masks-parser python -m masks_parser --certificate data/input/certificate.docx --catalog data/input/catalog.xlsx --output data/output/report.xlsx
 ```
 
 Папка `data/` подключается в контейнер; `--user` нужен, чтобы отчёт принадлежал вашему пользователю, а не root.
 
-Веб-интерфейс в Docker (откройте http://localhost:8000):
+## Деплой на Render
 
-```bash
-docker run --rm -p 8000:8000 --entrypoint python masks-parser -m masks_parser.web --host 0.0.0.0
-```
+В репозитории есть [render.yaml](render.yaml): в панели Render выберите **New → Blueprint**, укажите этот репозиторий — сервис соберётся из Dockerfile и будет обновляться на каждый push в основную ветку. Порт Render передаёт сам (переменная `PORT`).
+
+- На бесплатном тарифе сервис засыпает без трафика: первое открытие после простоя занимает 30–60 секунд.
+- Сайт публичный, входа по паролю нет: загрузить файлы может любой, у кого есть ссылка. Файлы хранятся во временной папке (`MASKS_PARSER_JOBS_DIR`, по умолчанию `/tmp/masks-parser-jobs`) и удаляются через час.
 
 ## Тесты и линтеры
 

@@ -172,3 +172,21 @@ def test_old_jobs_are_removed(tmp_path):
 )
 def test_visible(text, shown):
     assert visible(text) == shown
+
+
+def test_report_is_available_from_another_worker(tmp_path):
+    # gunicorn запускает несколько процессов: проверка в одном, скачивание — в другом.
+    root = tmp_path / "jobs"
+    first = create_app(store=JobStore(root)).test_client()
+    second = create_app(store=JobStore(root)).test_client()
+    page = first.post("/check", data={"use_samples": "1"}).get_data(as_text=True)
+    job_id = page.split('href="/report/')[1].split('"')[0]
+    assert second.get(f"/report/{job_id}").status_code == 200
+
+
+def test_default_root_is_shared_and_configurable(monkeypatch, tmp_path):
+    monkeypatch.delenv(JobStore.ROOT_ENV, raising=False)
+    assert JobStore.default_root() == JobStore.default_root()
+    assert JobStore.default_root().name == "masks-parser-jobs"
+    monkeypatch.setenv(JobStore.ROOT_ENV, str(tmp_path / "custom"))
+    assert JobStore.default_root() == tmp_path / "custom"
