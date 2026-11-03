@@ -1,9 +1,8 @@
-from masks_parser.domain import CatalogItem, Certificate
+from masks_parser.domain import CatalogItem, Certificate, normalize_name
 
 
 def _same(a: str, b: str) -> bool:
-    # Без учёта регистра и краевых пробелов: «Hi-Lex Corporation » == «HI-LEX CORPORATION».
-    return a.strip().casefold() == b.strip().casefold()
+    return normalize_name(a) == normalize_name(b)
 
 
 class ScopeChecker:
