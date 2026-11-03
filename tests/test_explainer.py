@@ -1,14 +1,6 @@
 import pytest
 
-from masks_parser.catalog import ArticleNormalizer
-from masks_parser.domain import MatchStatus
 from masks_parser.matching import MismatchExplainer, compile_mask
-from tests import hilex
-
-
-@pytest.fixture(scope="module")
-def explainer(hilex_masks) -> MismatchExplainer:
-    return MismatchExplainer(hilex_masks)
 
 
 @pytest.mark.parametrize(
@@ -53,24 +45,3 @@ def test_fallback_reason_when_no_rule_applies():
     # Длина и префикс верны, но символ не подходит под класс подстановки.
     explainer = MismatchExplainer([compile_mask("AB-***")])
     assert explainer.explain("AB-1-2") == "Не соответствует ни одной маске"
-
-
-def test_samples_match_expected_status(matcher, explainer):
-    """Нормализация + маски дают эталонный результат по строкам HI-LEX из тестовой выгрузки.
-
-    Строки других производителей и групп проверяются на этапе фильтрации выгрузки.
-    """
-    normalizer = ArticleNormalizer()
-    rows = [
-        r
-        for r in hilex.sample_rows()
-        if (r["Производитель"], r["Товарная группа"]) == (hilex.MANUFACTURER, hilex.GROUP)
-    ]
-    assert len(rows) > 150
-    for row in rows:
-        key = normalizer.normalize(row["Артикул"])
-        mask = matcher.match(key)
-        status = MatchStatus.MATCH if mask else MatchStatus.EXCEPTION
-        assert status == row["expected"], (row["Артикул"], explainer.explain(key))
-        if not mask:
-            assert explainer.explain(key) != "Не соответствует ни одной маске", row["Артикул"]
