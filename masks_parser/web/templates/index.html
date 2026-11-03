@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Сверка артикулов</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<main class="page">
+  <header class="header">
+    <a href="{{ url_for('index') }}" class="brand">
+      <span class="brand-mark" aria-hidden="true">4VB<span>****</span></span>
+      <span>Сверка артикулов</span>
+    </a>
+    <p class="lead">Загрузите масочный сертификат и выгрузку каталога — программа найдёт товары, на которые распространяется сертификат, и объяснит, почему не подошли остальные.</p>
+  </header>
+
+  {% if result %}
+    {% set s = result.summary %}
+    {% set empty_masks = s.by_mask.values() | select("equalto", 0) | list | length %}
+    <section class="card result" aria-labelledby="result-title">
+      <div class="result-head">
+        <div>
+          <p class="eyebrow ok">Проверка завершена</p>
+          <h1 id="result-title">{{ s.certificate.manufacturer }} · {{ s.certificate.product_group }}</h1>
+          <p class="muted">Сертификат <b>{{ result.certificate_name }}</b> ({{ s.certificate.masks | length }} масок) · выгрузка <b>{{ result.catalog_name }}</b></p>
+        </div>
+        <div class="actions">
+          <a class="button primary" href="{{ url_for('report', job_id=result.job_id) }}">Скачать отчёт Excel</a>
+          <a class="button" href="{{ url_for('index') }}">Новая проверка</a>
+        </div>
+      </div>
+
+      <dl class="stats">
+        <div class="stat"><dt>Строк в выгрузке</dt><dd>{{ s.total }}</dd></div>
+        <div class="stat good"><dt>Соответствует</dt><dd>{{ s.matched }}</dd></div>
+        <div class="stat warn"><dt>Исключений</dt><dd>{{ s.exceptions }}</dd></div>
+        <div class="stat"><dt>Масок без находок</dt><dd>{{ empty_masks }} <small>из {{ s.by_mask | length }}</small></dd></div>
+      </dl>
+
+      <p class="note">Отчёт Excel содержит все строки: листы «Соответствует», «Исключения» и «Сводка». Ниже — предпросмотр{% if s.matched > result.preview_limit or s.exceptions > result.preview_limit %} (не больше {{ result.preview_limit }} строк в каждой вкладке){% endif %}. Номер строки — как в вашем файле. Невидимые символы показаны явно: <code>␣</code> — пробел по краю, <code>⟨U+00A0⟩</code> — неразрывный пробел и т. п.</p>
+
+      <div class="tabs">
+        <input type="radio" name="tab" id="tab-match" checked>
+        <label for="tab-match">Соответствует <span class="count">{{ s.matched }}</span></label>
+        <input type="radio" name="tab" id="tab-exc">
+        <label for="tab-exc">Исключения <span class="count">{{ s.exceptions }}</span></label>
+        <input type="radio" name="tab" id="tab-mask">
+        <label for="tab-mask">По маскам <span class="count">{{ s.by_mask | length }}</span></label>
+
+        <div class="panel" id="panel-match">
+          {% if result.matches %}
+          <div class="table-wrap"><table>
+            <thead><tr><th class="num">Строка</th><th>Артикул в выгрузке</th><th>Поисковый ключ</th><th>Маска</th></tr></thead>
+            <tbody>
+            {% for r in result.matches %}
+              <tr><td class="num">{{ r.item.row_id }}</td><td class="mono">{{ r.item.raw_article | visible }}</td><td class="mono">{{ r.item.key }}</td><td class="mono">{{ r.mask.pattern }}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table></div>
+          {% else %}
+          <p class="empty">Ни один товар из выгрузки не подошёл под маски сертификата. Причины — во вкладке «Исключения».</p>
+          {% endif %}
+        </div>
+
+        <div class="panel" id="panel-exc">
+          {% if result.exceptions %}
+          <div class="table-wrap"><table>
+            <thead><tr><th class="num">Строка</th><th>Производитель</th><th>Артикул в выгрузке</th><th>Причина</th></tr></thead>
+            <tbody>
+            {% for r in result.exceptions %}
+              <tr><td class="num">{{ r.item.row_id }}</td><td>{{ r.item.manufacturer or "—" }}</td><td class="mono">{{ r.item.raw_article | visible }}</td><td>{{ r.reason }}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table></div>
+          {% else %}
+          <p class="empty">Исключений нет: все строки выгрузки подошли под маски.</p>
+          {% endif %}
+        </div>
+
+        <div class="panel" id="panel-mask">
+          <div class="table-wrap"><table>
+            <thead><tr><th>Маска</th><th class="num">Найдено товаров</th></tr></thead>
+            <tbody>
+            {% for pattern, count in s.by_mask.items() %}
+              <tr class="{{ 'zero' if count == 0 }}"><td class="mono">{{ pattern }}</td><td class="num">{{ count }}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+    </section>
+
+  {% else %}
+    {% if error %}
+    <section class="card alert" role="alert">
+      <h2>{{ error.title }}</h2>
+      <ul>{% for p in error.problems %}<li>{{ p }}</li>{% endfor %}</ul>
+      <p class="muted">Исправьте файлы и загрузите их ещё раз.</p>
+    </section>
+    {% endif %}
+
+    <ol class="steps" aria-label="Как это работает">
+      <li><b>Сертификат</b><span>Берём производителя, товарную группу и маски, сверяем разделы документа между собой</span></li>
+      <li><b>Выгрузка каталога</b><span>Каждую строку проверяем по производителю, группе и маскам</span></li>
+      <li><b>Результат</b><span>Список подходящих товаров, исключения с причинами и отчёт Excel</span></li>
+    </ol>
+
+    <form class="card upload" action="{{ url_for('check') }}" method="post" enctype="multipart/form-data" data-submit>
+      <div class="drops">
+        <label class="drop" data-drop>
+          <input type="file" name="certificate" accept=".docx" required>
+          <span class="drop-step">1</span>
+          <span class="drop-title">Масочный сертификат</span>
+          <span class="drop-hint">Документ Word <code>.docx</code> с таблицей реестра (колонка «Маска»)</span>
+          <span class="drop-file" data-file>Перетащите файл сюда или нажмите, чтобы выбрать</span>
+        </label>
+        <label class="drop" data-drop>
+          <input type="file" name="catalog" accept=".xlsx,.csv" required>
+          <span class="drop-step">2</span>
+          <span class="drop-title">Выгрузка каталога</span>
+          <span class="drop-hint">Excel <code>.xlsx</code> или <code>.csv</code> с колонками «Производитель», «Товарная группа», «Артикул»</span>
+          <span class="drop-file" data-file>Перетащите файл сюда или нажмите, чтобы выбрать</span>
+        </label>
+      </div>
+      <div class="form-foot">
+        <p class="muted">Файлы до {{ max_upload_mb }} МБ. Они обрабатываются на этом сервере и удаляются через час.</p>
+        <button class="button primary" type="submit" data-busy="Проверяем…">Проверить</button>
+      </div>
+    </form>
+
+    {% if samples | length == 3 %}
+    <section class="card samples">
+      <div>
+        <h2>Нет файлов под рукой?</h2>
+        <p class="muted">Запустите проверку на синтетических примерах или скачайте их, чтобы посмотреть ожидаемый формат:
+          {% for name in samples %}<a href="{{ url_for('sample', name=name) }}">{{ name }}</a>{{ ", " if not loop.last }}{% endfor %}.</p>
+      </div>
+      <form action="{{ url_for('check') }}" method="post" data-submit>
+        <input type="hidden" name="use_samples" value="1">
+        <button class="button" type="submit" data-busy="Проверяем…">Проверить на примерах</button>
+      </form>
+    </section>
+    {% endif %}
+
+    <details class="card details">
+      <summary>Что именно проверяется</summary>
+      <div class="details-body">
+        <h3>Сертификат</h3>
+        <p>Маски из таблицы реестра сверяются с перечнем масок в тексте, с итоговым регулярным выражением и с заявленным числом масок. Производитель и товарная группа должны совпадать во всех упоминаниях. Если разделы расходятся, проверка останавливается и показывает все расхождения.</p>
+        <h3>Каждая строка выгрузки</h3>
+        <ol>
+          <li>Производитель и товарная группа совпадают с сертификатом (регистр и пробелы по краям не важны).</li>
+          <li>Артикул приводится к поисковому ключу: латинские буквы — в верхний регистр, неразрывные пробелы — в обычные, пробелы по краям убираются. Больше ничего не исправляется: русская «А» не заменяется латинской, «О» и ноль — разные символы.</li>
+          <li>Ключ целиком сверяется с масками: звёздочка — ровно одна цифра 0–9 или латинская буква A–Z. Подходящий артикул соответствует ровно одной маске.</li>
+          <li>Если артикул не подошёл, указывается причина: кириллица, недопустимый символ, пробел внутри, неизвестный префикс, неверная длина и т. п.</li>
+        </ol>
+      </div>
+    </details>
+  {% endif %}
+
+  <footer class="footer muted">masks-parser · правила проверки описаны в README и docs/adr</footer>
+</main>
+<script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>
