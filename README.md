@@ -16,7 +16,7 @@ pip install -r requirements.txt
 python -m masks_parser --certificate path/to/certificate.docx --catalog samples/catalog_sample.xlsx --output data/output/report.xlsx
 ```
 
-Тесты: `pytest`
+Тесты: `pytest`, линтеры: `ruff check . && ruff format --check .`
 
 ### Docker
 
